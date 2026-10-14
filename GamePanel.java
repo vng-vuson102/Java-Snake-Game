@@ -5,23 +5,20 @@ import java.util.Random;
 
 public class GamePanel extends JPanel implements ActionListener {
 
-    // Cấu hình kích thước ô và màn hình
     static final int SCREEN_WIDTH = 600;
     static final int SCREEN_HEIGHT = 600;
-    static final int UNIT_SIZE = 25; // Kích thước mỗi ô vuông (25px)
+    static final int UNIT_SIZE = 25;
     static final int GAME_UNITS = (SCREEN_WIDTH * SCREEN_HEIGHT) / UNIT_SIZE;
-    static final int DELAY = 100; // Tốc độ game (100ms)
+    static final int DELAY = 100;
 
-    // Tọa độ thân rắn
     final int x[] = new int[GAME_UNITS];
     final int y[] = new int[GAME_UNITS];
-    int bodyParts = 3; // Số đốt ban đầu của rắn
-
-    // Tọa độ thức ăn
+    int bodyParts = 3;
+    int applesEaten = 0; // Số điểm / số táo đã ăn
     int appleX;
     int appleY;
 
-    char direction = 'R'; // Hướng di chuyển: R (Right), L (Left), U (Up), D (Down)
+    char direction = 'R';
     boolean running = false;
     Timer timer;
     Random random;
@@ -29,8 +26,9 @@ public class GamePanel extends JPanel implements ActionListener {
     public GamePanel() {
         random = new Random();
         this.setPreferredSize(new Dimension(SCREEN_WIDTH, SCREEN_HEIGHT));
-        this.setBackground(Color.black); // Nền đen
+        this.setBackground(Color.black);
         this.setFocusable(true);
+        this.addKeyListener(new MyKeyAdapter()); // Bắt sự kiện bàn phím
         startGame();
     }
 
@@ -48,11 +46,11 @@ public class GamePanel extends JPanel implements ActionListener {
 
     public void draw(Graphics g) {
         if (running) {
-            // Vẽ thức ăn (Màu đỏ)
+            // Vẽ thức ăn
             g.setColor(Color.red);
             g.fillOval(appleX, appleY, UNIT_SIZE, UNIT_SIZE);
 
-            // Vẽ Rắn (Đầu màu xanh lá đậm, thân màu xanh lá nhạt)
+            // Vẽ Rắn
             for (int i = 0; i < bodyParts; i++) {
                 if (i == 0) {
                     g.setColor(Color.green);
@@ -62,16 +60,23 @@ public class GamePanel extends JPanel implements ActionListener {
                     g.fillRect(x[i], y[i], UNIT_SIZE, UNIT_SIZE);
                 }
             }
+
+            // Hiển thị điểm số ở đỉnh màn hình
+            g.setColor(Color.red);
+            g.setFont(new Font("Ink Free", Font.BOLD, 30));
+            FontMetrics metrics = getFontMetrics(g.getFont());
+            g.drawString("Score: " + applesEaten, (SCREEN_WIDTH - metrics.stringWidth("Score: " + applesEaten)) / 2,
+                    g.getFont().getSize());
+        } else {
+            gameOver(g);
         }
     }
 
-    // Tạo thức ăn ngẫu nhiên trên lưới
     public void newApple() {
         appleX = random.nextInt((int) (SCREEN_WIDTH / UNIT_SIZE)) * UNIT_SIZE;
         appleY = random.nextInt((int) (SCREEN_HEIGHT / UNIT_SIZE)) * UNIT_SIZE;
     }
 
-    // Tự động di chuyển rắn forward
     public void move() {
         for (int i = bodyParts; i > 0; i--) {
             x[i] = x[i - 1];
@@ -94,11 +99,81 @@ public class GamePanel extends JPanel implements ActionListener {
         }
     }
 
+    // Kiểm tra xem đầu rắn có chạm vào thức ăn không
+    public void checkApple() {
+        if ((x[0] == appleX) && (y[0] == appleY)) {
+            bodyParts++;
+            applesEaten++;
+            newApple();
+        }
+    }
+
+    // Kiểm tra va chạm (Đâm vào thân hoặc đâm vào tường)
+    public void checkCollisions() {
+        // Kiểm tra đâm vào thân
+        for (int i = bodyParts; i > 0; i--) {
+            if ((x[0] == x[i]) && (y[0] == y[i])) {
+                running = false;
+            }
+        }
+        // Kiểm tra đâm vào các mép tường
+        if (x[0] < 0 || x[0] >= SCREEN_WIDTH || y[0] < 0 || y[0] >= SCREEN_HEIGHT) {
+            running = false;
+        }
+
+        if (!running) {
+            timer.stop();
+        }
+    }
+
+    // Màn hình khi Game Over
+    public void gameOver(Graphics g) {
+        // Hiện điểm
+        g.setColor(Color.red);
+        g.setFont(new Font("Ink Free", Font.BOLD, 30));
+        FontMetrics metrics1 = getFontMetrics(g.getFont());
+        g.drawString("Score: " + applesEaten, (SCREEN_WIDTH - metrics1.stringWidth("Score: " + applesEaten)) / 2,
+                g.getFont().getSize());
+
+        // Chữ Game Over
+        g.setColor(Color.red);
+        g.setFont(new Font("Ink Free", Font.BOLD, 75));
+        FontMetrics metrics2 = getFontMetrics(g.getFont());
+        g.drawString("Game Over", (SCREEN_WIDTH - metrics2.stringWidth("Game Over")) / 2, SCREEN_HEIGHT / 2);
+    }
+
     @Override
     public void actionPerformed(ActionEvent e) {
         if (running) {
             move();
+            checkApple();
+            checkCollisions();
         }
         repaint();
+    }
+
+    // Bộ lắng nghe phím bấm điều hướng
+    public class MyKeyAdapter extends KeyAdapter {
+        @Override
+        public void keyPressed(KeyEvent e) {
+            switch (e.getKeyCode()) {
+                case KeyEvent.VK_LEFT:
+                    if (direction != 'R')
+                        direction = 'L';
+                    break;
+                case KeyEvent.VK_RIGHT:
+                    if (direction != 'L')
+                        direction = 'R';
+                    break;
+                case KeyEvent.VK_UP:
+                    if (direction != 'D')
+                        direction = 'U';
+                    break;
+                case KeyEvent.VK_DOWN:
+                    if (direction != 'U')
+                        direction = 'D';
+                    break;
+            }
+        }
     }
 }
