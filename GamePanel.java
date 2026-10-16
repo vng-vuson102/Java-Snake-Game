@@ -8,11 +8,17 @@ public class GamePanel extends JPanel implements ActionListener {
     static final int SCREEN_WIDTH = 600;
     static final int SCREEN_HEIGHT = 600;
     static final int UNIT_SIZE = 25;
-    static final int GAME_UNITS = (SCREEN_WIDTH * SCREEN_HEIGHT) / UNIT_SIZE;
+    static final int BOARD_TOP = UNIT_SIZE * 2;
+    static final int BOARD_BOTTOM = SCREEN_HEIGHT - UNIT_SIZE * 2;
+    static final int BOARD_COLUMNS = SCREEN_WIDTH / UNIT_SIZE;
+    static final int BOARD_ROWS = (BOARD_BOTTOM - BOARD_TOP) / UNIT_SIZE;
+    static final int GAME_UNITS = BOARD_COLUMNS * BOARD_ROWS;
 
     enum GameState {
-        MENU, PLAYING, GAME_OVER
+        MENU, PLAYING, PAUSED, GAME_OVER, WON
     }
+
+    private static final long serialVersionUID = 1L;
 
     GameState gameState = GameState.MENU;
 
@@ -49,6 +55,7 @@ public class GamePanel extends JPanel implements ActionListener {
     int appleY;
 
     char direction = 'R';
+    char nextDirection = 'R';
     Timer timer;
     Random random;
     int currentDelay;
@@ -66,18 +73,20 @@ public class GamePanel extends JPanel implements ActionListener {
         applesEaten = 0;
         level = 1;
         direction = 'R';
+        nextDirection = 'R';
         for (int i = 0; i < bodyParts; i++) {
-            x[i] = 0;
-            y[i] = 0;
+            x[i] = SCREEN_WIDTH / 2 - i * UNIT_SIZE;
+            y[i] = SCREEN_HEIGHT / 2;
         }
 
-        newApple();
+        playerName = playerName.trim().isEmpty() ? "Player 1" : playerName.trim();
         currentDelay = diffDelays[selectedDiffIndex];
         gameState = GameState.PLAYING;
 
         if (timer != null && timer.isRunning()) {
             timer.stop();
         }
+        newApple();
         timer = new Timer(currentDelay, this);
         timer.start();
     }
@@ -89,10 +98,13 @@ public class GamePanel extends JPanel implements ActionListener {
 
         if (gameState == GameState.MENU) {
             drawMenu(g2d);
-        } else if (gameState == GameState.PLAYING) {
+        } else if (gameState == GameState.PLAYING || gameState == GameState.PAUSED) {
             drawGame(g2d);
-        } else if (gameState == GameState.GAME_OVER) {
-            drawGameOver(g2d);
+            if (gameState == GameState.PAUSED) {
+                drawOverlay(g2d, "PAUSED", "Press P to Resume");
+            }
+        } else if (gameState == GameState.GAME_OVER || gameState == GameState.WON) {
+            drawEndScreen(g2d);
         }
     }
 
@@ -107,16 +119,16 @@ public class GamePanel extends JPanel implements ActionListener {
 
         // Field 0: Player Name
         g2d.setColor(menuFocus == 0 ? Color.YELLOW : Color.WHITE);
-        g2d.drawString((menuFocus == 0 ? "👉 " : "   ") + "Player Name: " + playerName + "_", 100, 200);
+        g2d.drawString((menuFocus == 0 ? "> " : "  ") + "Player Name: " + playerName + "_", 100, 200);
 
         // Field 1: Difficulty
         g2d.setColor(menuFocus == 1 ? Color.YELLOW : Color.WHITE);
-        g2d.drawString((menuFocus == 1 ? "👉 " : "   ") + "Difficulty: < " + diffNames[selectedDiffIndex] + " >", 100,
+        g2d.drawString((menuFocus == 1 ? "> " : "  ") + "Difficulty: < " + diffNames[selectedDiffIndex] + " >", 100,
                 260);
 
         // Field 2: Snake Color
         g2d.setColor(menuFocus == 2 ? Color.YELLOW : Color.WHITE);
-        g2d.drawString((menuFocus == 2 ? "👉 " : "   ") + "Snake Color: < " + colorNames[selectedColorIndex] + " >",
+        g2d.drawString((menuFocus == 2 ? "> " : "  ") + "Snake Color: < " + colorNames[selectedColorIndex] + " >",
                 100, 320);
 
         // Color Preview Box
@@ -126,12 +138,12 @@ public class GamePanel extends JPanel implements ActionListener {
         // Field 3: Start Button
         g2d.setColor(menuFocus == 3 ? Color.GREEN : Color.GRAY);
         g2d.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        g2d.drawString((menuFocus == 3 ? "👉 [ START GAME ] 👈" : "   [ START GAME ]"), 150, 420);
+        g2d.drawString((menuFocus == 3 ? "> [ START GAME ] <" : "  [ START GAME ]"), 150, 420);
 
         // Instructions
         g2d.setColor(new Color(148, 163, 184));
         g2d.setFont(new Font("Segoe UI", Font.ITALIC, 14));
-        g2d.drawString("Use Up/Down to navigate | Left/Right to change options | Enter to Start", 60, 520);
+        g2d.drawString("Up/Down: Select | Left/Right: Change | Enter: Start | Backspace: Edit name", 60, 520);
     }
 
     // 2. Draw Game với hiệu ứng Map/Thời tiết đổi theo Level
@@ -157,15 +169,17 @@ public class GamePanel extends JPanel implements ActionListener {
             gridColor2 = new Color(12, 74, 110);
         }
 
-        // Vẽ Lưới Caro Map
-        for (int i = 0; i < SCREEN_HEIGHT / UNIT_SIZE; i++) {
-            for (int j = 0; j < SCREEN_WIDTH / UNIT_SIZE; j++) {
-                if ((i + j) % 2 == 0) {
+        g2d.setColor(gridColor2);
+        g2d.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        for (int row = 0; row < BOARD_ROWS; row++) {
+            for (int column = 0; column < BOARD_COLUMNS; column++) {
+                if ((row + column) % 2 == 0) {
                     g2d.setColor(gridColor1);
                 } else {
                     g2d.setColor(gridColor2);
                 }
-                g2d.fillRect(j * UNIT_SIZE, i * UNIT_SIZE, UNIT_SIZE, UNIT_SIZE);
+                g2d.fillRect(column * UNIT_SIZE, BOARD_TOP + row * UNIT_SIZE, UNIT_SIZE, UNIT_SIZE);
             }
         }
 
@@ -199,43 +213,77 @@ public class GamePanel extends JPanel implements ActionListener {
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Segoe UI", Font.BOLD, 15));
         g2d.drawString("Player: " + playerName, 15, 25);
-        g2d.drawString("Score: " + applesEaten, 180, 25);
-        g2d.drawString("High: " + highScore, 300, 25);
+        g2d.drawString("Score: " + applesEaten, 190, 25);
+        g2d.drawString("Level: " + level, 300, 25);
+        g2d.drawString("Best: " + highScore, 410, 25);
         g2d.drawString(locationName, 15, 590);
     }
 
-    // 3. Draw Game Over
-    public void drawGameOver(Graphics2D g2d) {
-        g2d.setColor(new Color(15, 23, 42));
+    public void drawOverlay(Graphics2D g2d, String title, String instruction) {
+        g2d.setColor(new Color(15, 23, 42, 210));
         g2d.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-        g2d.setColor(new Color(239, 68, 68));
-        g2d.setFont(new Font("Segoe UI", Font.BOLD, 50));
-        FontMetrics m1 = getFontMetrics(g2d.getFont());
-        g2d.drawString("GAME OVER", (SCREEN_WIDTH - m1.stringWidth("GAME OVER")) / 2, 180);
-
         g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        FontMetrics m2 = getFontMetrics(g2d.getFont());
-        g2d.drawString("Player: " + playerName + "  |  Score: " + applesEaten + "  |  High Score: " + highScore,
-                (SCREEN_WIDTH - m2.stringWidth(
-                        "Player: " + playerName + "  |  Score: " + applesEaten + "  |  High Score: " + highScore)) / 2,
-                260);
-
-        g2d.setColor(new Color(148, 163, 184));
-        g2d.setFont(new Font("Segoe UI", Font.PLAIN, 18));
-        FontMetrics m3 = getFontMetrics(g2d.getFont());
-        g2d.drawString("Press SPACE to Restart", (SCREEN_WIDTH - m3.stringWidth("Press SPACE to Restart")) / 2, 360);
-        g2d.drawString("Press M to Return to Menu", (SCREEN_WIDTH - m3.stringWidth("Press M to Return to Menu")) / 2,
-                400);
+        g2d.setFont(new Font("Segoe UI", Font.BOLD, 44));
+        FontMetrics titleMetrics = g2d.getFontMetrics();
+        g2d.drawString(title, (SCREEN_WIDTH - titleMetrics.stringWidth(title)) / 2, 200);
+        g2d.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        FontMetrics instructionMetrics = g2d.getFontMetrics();
+        g2d.drawString(instruction, (SCREEN_WIDTH - instructionMetrics.stringWidth(instruction)) / 2, 260);
     }
 
-    public void newApple() {
-        appleX = random.nextInt((int) (SCREEN_WIDTH / UNIT_SIZE)) * UNIT_SIZE;
-        appleY = random.nextInt((int) (SCREEN_HEIGHT / UNIT_SIZE)) * UNIT_SIZE;
+    public void drawEndScreen(Graphics2D g2d) {
+        String title = gameState == GameState.WON ? "YOU WIN!" : "GAME OVER";
+        drawOverlay(g2d, title, "Player: " + playerName + "  |  Score: " + applesEaten + "  |  Best: " + highScore);
+
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        String restart = "Press SPACE to Restart";
+        String menu = "Press M to Return to Menu";
+        FontMetrics metrics = g2d.getFontMetrics();
+        g2d.drawString(restart, (SCREEN_WIDTH - metrics.stringWidth(restart)) / 2, 360);
+        g2d.drawString(menu, (SCREEN_WIDTH - metrics.stringWidth(menu)) / 2, 400);
+    }
+
+    public boolean newApple() {
+        int availableCells = 0;
+        for (int row = 0; row < BOARD_ROWS; row++) {
+            for (int column = 0; column < BOARD_COLUMNS; column++) {
+                if (!isSnakeAt(column * UNIT_SIZE, BOARD_TOP + row * UNIT_SIZE)) {
+                    availableCells++;
+                }
+            }
+        }
+
+        if (availableCells == 0) {
+            return false;
+        }
+
+        int targetCell = random.nextInt(availableCells);
+        for (int row = 0; row < BOARD_ROWS; row++) {
+            for (int column = 0; column < BOARD_COLUMNS; column++) {
+                int cellX = column * UNIT_SIZE;
+                int cellY = BOARD_TOP + row * UNIT_SIZE;
+                if (!isSnakeAt(cellX, cellY) && targetCell-- == 0) {
+                    appleX = cellX;
+                    appleY = cellY;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isSnakeAt(int cellX, int cellY) {
+        for (int i = 0; i < bodyParts; i++) {
+            if (x[i] == cellX && y[i] == cellY) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void move() {
+        direction = nextDirection;
         for (int i = bodyParts; i > 0; i--) {
             x[i] = x[i - 1];
             y[i] = y[i - 1];
@@ -266,33 +314,29 @@ public class GamePanel extends JPanel implements ActionListener {
                 highScore = applesEaten;
             }
 
-            // Ăn 5 quả táo tăng 1 Level
             if (applesEaten % 5 == 0) {
                 level++;
-                // Tăng tốc độ rất nhẹ nhàng (-5ms mỗi Level)
                 if (currentDelay > 50) {
-                    currentDelay -= 5;
+                    currentDelay = Math.max(50, currentDelay - 5);
                     timer.setDelay(currentDelay);
                 }
             }
 
-            newApple();
+            if (!newApple()) {
+                gameState = GameState.WON;
+            }
         }
     }
 
     public void checkCollisions() {
-        for (int i = bodyParts; i > 0; i--) {
+        for (int i = 1; i < bodyParts; i++) {
             if ((x[0] == x[i]) && (y[0] == y[i])) {
                 gameState = GameState.GAME_OVER;
             }
         }
 
-        if (x[0] < 0 || x[0] >= SCREEN_WIDTH || y[0] < 0 || y[0] >= SCREEN_HEIGHT) {
+        if (x[0] < 0 || x[0] >= SCREEN_WIDTH || y[0] < BOARD_TOP || y[0] >= BOARD_BOTTOM) {
             gameState = GameState.GAME_OVER;
-        }
-
-        if (gameState == GameState.GAME_OVER && timer != null) {
-            timer.stop();
         }
     }
 
@@ -301,7 +345,12 @@ public class GamePanel extends JPanel implements ActionListener {
         if (gameState == GameState.PLAYING) {
             move();
             checkApple();
-            checkCollisions();
+            if (gameState == GameState.PLAYING) {
+                checkCollisions();
+            }
+            if (gameState != GameState.PLAYING) {
+                timer.stop();
+            }
         }
         repaint();
     }
@@ -330,37 +379,45 @@ public class GamePanel extends JPanel implements ActionListener {
                     }
                 } else if (key == KeyEvent.VK_ENTER) {
                     startGame();
-                } else if (menuFocus == 0) { // Nhập tên
+                } else if (menuFocus == 0) {
                     if (key == KeyEvent.VK_BACK_SPACE && playerName.length() > 0) {
                         playerName = playerName.substring(0, playerName.length() - 1);
-                    } else if (Character.isDefined(e.getKeyChar()) && playerName.length() < 12
-                            && key != KeyEvent.VK_BACK_SPACE) {
-                        if (playerName.equals("Player 1"))
+                    } else if (isNameCharacter(e.getKeyChar()) && playerName.length() < 12) {
+                        if (playerName.equals("Player 1")) {
                             playerName = "";
+                        }
                         playerName += e.getKeyChar();
                     }
                 }
                 repaint();
             } else if (gameState == GameState.PLAYING) {
+                if (key == KeyEvent.VK_P) {
+                    gameState = GameState.PAUSED;
+                    timer.stop();
+                    repaint();
+                    return;
+                }
                 switch (key) {
                     case KeyEvent.VK_LEFT:
-                        if (direction != 'R')
-                            direction = 'L';
+                        queueDirection('L');
                         break;
                     case KeyEvent.VK_RIGHT:
-                        if (direction != 'L')
-                            direction = 'R';
+                        queueDirection('R');
                         break;
                     case KeyEvent.VK_UP:
-                        if (direction != 'D')
-                            direction = 'U';
+                        queueDirection('U');
                         break;
                     case KeyEvent.VK_DOWN:
-                        if (direction != 'U')
-                            direction = 'D';
+                        queueDirection('D');
                         break;
                 }
-            } else if (gameState == GameState.GAME_OVER) {
+            } else if (gameState == GameState.PAUSED) {
+                if (key == KeyEvent.VK_P) {
+                    gameState = GameState.PLAYING;
+                    timer.start();
+                    repaint();
+                }
+            } else if (gameState == GameState.GAME_OVER || gameState == GameState.WON) {
                 if (key == KeyEvent.VK_SPACE) {
                     startGame();
                 } else if (key == KeyEvent.VK_M) {
@@ -368,6 +425,20 @@ public class GamePanel extends JPanel implements ActionListener {
                     repaint();
                 }
             }
+        }
+    }
+
+    private boolean isNameCharacter(char character) {
+        return Character.isLetterOrDigit(character) || character == ' ' || character == '-' || character == '_';
+    }
+
+    private void queueDirection(char requestedDirection) {
+        boolean isOpposite = (direction == 'U' && requestedDirection == 'D')
+                || (direction == 'D' && requestedDirection == 'U')
+                || (direction == 'L' && requestedDirection == 'R')
+                || (direction == 'R' && requestedDirection == 'L');
+        if (!isOpposite) {
+            nextDirection = requestedDirection;
         }
     }
 }

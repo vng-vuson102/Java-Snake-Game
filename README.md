@@ -1,6 +1,6 @@
-# 🐍 Java Snake Game 2.0
+# 🐍 Java Snake Game
 
-Dự án game Rắn Săn Mồi nâng cấp được xây dựng bằng ngôn ngữ **Java (Swing / AWT)** với giao diện đồ họa mượt mà và hệ thống màn chơi đa dạng.
+Game Rắn Săn Mồi viết bằng **Java Swing/AWT**, có menu cấu hình, ba mức độ khó, bản đồ đổi màu theo cấp độ và bảng điểm.
 
 ---
 
@@ -22,6 +22,7 @@ Dự án game Rắn Săn Mồi nâng cấp được xây dựng bằng ngôn ng�
   - Rắn bo góc mượt mà, có hiệu ứng mắt hướng theo chiều di chuyển.
   - Quả táo bo tròn có cuống lá.
   - Điểm số, Cấp độ và Kỷ lục (High Score) cập nhật thời gian thực.
+  - Tạm dừng, phát hiện va chạm với tường/thân rắn và thông báo chiến thắng khi lấp đầy bàn chơi.
 
 ---
 
@@ -37,8 +38,10 @@ Dự án game Rắn Săn Mồi nâng cấp được xây dựng bằng ngôn ng�
 ### 2. Trong khi chơi
 
 - **Phím `↑`, `↓`, `←`, `→`**: Điều khiển hướng di chuyển của Rắn.
+- **Phím `P`**: Tạm dừng hoặc tiếp tục.
+- Ăn 5 quả táo để lên một cấp; rắn tăng tốc nhẹ sau mỗi cấp.
 
-### 3. Màn hình Game Over
+### 3. Khi kết thúc ván
 
 - **Phím `SPACE`**: Chơi lại ngay lập tức với cấu hình hiện tại.
 - **Phím `M`**: Quay lại màn hình Menu để thay đổi cài đặt.
@@ -48,7 +51,10 @@ Dự án game Rắn Săn Mồi nâng cấp được xây dựng bằng ngôn ng�
 ## 🛠️ Yêu cầu môi trường & Cách chạy
 
 1. **Yêu cầu:** Java JDK 17+ (Đã thử nghiệm hoàn hảo trên JDK 24).
-2. **Clone repository về máy:**
+2. **Tải mã nguồn và chạy** (từ thư mục chứa `SnakeGame.java`):
    ```bash
-   git clone [https://github.com/vng-vuson102/Java-Snake-Game.git](https://github.com/vng-vuson102/Java-Snake-Game.git)
+   git clone https://github.com/vng-vuson102/Java-Snake-Game.git
+   cd Java-Snake-Game
+   javac SnakeGame.java GamePanel.java
+   java SnakeGame
    ```
